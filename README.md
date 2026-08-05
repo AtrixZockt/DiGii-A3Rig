@@ -41,8 +41,12 @@ $ winget install DiGii.A3Rig
 
 Self-contained — no Python needed. Open a new terminal afterwards and `a3rig` is on PATH.
 
+[HEMTT](https://hemtt.dev) needs to be on PATH too — `winget install BrettMayson.HEMTT`.
+
 <details>
-<summary>Installing from source instead (for working on a3rig itself)</summary>
+<summary><b>Installing from source instead</b> — only needed to work on a3rig itself</summary>
+
+<br>
 
 One command, from the repository root:
 
@@ -85,10 +89,7 @@ deliberately ignores an activated virtualenv: `py` and `python` both resolve to 
 interpreter when one is active, which is what makes the manual steps below fail with
 `No module named pipx`.
 
-<details>
-<summary>Manual install</summary>
-
-Run these from a terminal with **no virtualenv active**:
+**Manual install.** Run these from a terminal with **no virtualenv active**:
 
 ```console
 $ py -m pip install --user pipx
@@ -109,9 +110,8 @@ $ uv tool install --editable .
 ```
 
 A source install needs Python 3.11+. The winget package does not.
-</details>
 
-[HEMTT](https://hemtt.dev) must be on PATH either way.
+</details>
 
 ## Commands
 
