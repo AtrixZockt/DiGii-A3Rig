@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Start a local Arma 3 mod test rig (HEMTT dev build + 2 clients + dedicated server) with one command"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "DiGii" }]
 keywords = ["arma3", "hemtt", "modding", "cli"]
 classifiers = [
@@ -25,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 a3rig = "a3rig.cli:main"

@@ -35,6 +35,15 @@ during the tail stops the tail only; use `a3rig stop` to terminate the games.
 
 ## Install
 
+```console
+$ winget install DiGii.A3Rig
+```
+
+Self-contained — no Python needed. Open a new terminal afterwards and `a3rig` is on PATH.
+
+<details>
+<summary>Installing from source instead (for working on a3rig itself)</summary>
+
 One command, from the repository root:
 
 ```console
@@ -44,9 +53,7 @@ $ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 Then **open a new terminal** — `a3rig` works from any project directory, including in a
 VS Code window that was already running.
 
-<details>
-<summary>Why the installer touches your PowerShell profile</summary>
-
+**Why the installer touches your PowerShell profile.**
 `pipx ensurepath` only edits the persisted user PATH, and a process reads that once, at
 launch. VS Code hands each integrated terminal the environment it captured when *it*
 started, so a terminal opened in a long-running VS Code window never sees a PATH entry
@@ -71,7 +78,6 @@ second copy, and deleting the block cleanly undoes it.
 This covers PowerShell. A `cmd.exe` terminal inside an already-running VS Code still needs
 VS Code fully restarted — and "fully" means every window closed, so the main process
 actually exits.
-</details>
 
 `install.ps1` finds a system Python 3.11+, bootstraps pipx if it is missing, puts it on
 your user PATH, and installs `a3rig` in editable mode. It is safe to re-run, and it
@@ -101,9 +107,11 @@ Or with uv:
 $ winget install --id=astral-sh.uv
 $ uv tool install --editable .
 ```
+
+A source install needs Python 3.11+. The winget package does not.
 </details>
 
-Requires Python 3.11+ and [HEMTT](https://hemtt.dev) on PATH.
+[HEMTT](https://hemtt.dev) must be on PATH either way.
 
 ## Commands
 
@@ -303,3 +311,41 @@ extraction, BattlEye detection and patching, and session/tail behaviour.
 Module layout: `cli.py` (commands), `config.py` (merging), `hemtt.py` (launch.toml and mod
 resolution), `paths.py` (Steam/Arma detection), `preflight.py` (checks and command-line
 building), `servercfg.py`, `processes.py`, `tail.py`.
+
+## Releasing
+
+Bump `__version__` in [src/a3rig/\_\_init\_\_.py](src/a3rig/__init__.py), then:
+
+```console
+$ git tag v0.2.0 && git push origin v0.2.0
+```
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) then runs the tests,
+freezes a standalone `a3rig.exe` with PyInstaller, zips it, publishes a GitHub release,
+and attaches `winget-manifests.zip` with the SHA256 already filled in. The workflow fails
+the build if the tag and `__version__` disagree.
+
+To build locally instead:
+
+```console
+$ .\.venv\Scripts\python -m pip install -e ".[dev,build]"
+$ .\.venv\Scripts\python -m PyInstaller packaging/a3rig.spec --noconfirm
+```
+
+### Publishing to winget
+
+**First release** — submit by hand:
+
+1. Download `winget-manifests.zip` from the release.
+2. Validate: `winget validate --manifest <folder>`.
+3. Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), copy the three
+   files to `manifests/d/DiGii/A3Rig/<version>/`, and open a pull request. Automated
+   validation plus a human review follow.
+
+**Later releases** — once `DiGii.A3Rig` exists in winget-pkgs, add
+[WinGet Releaser](https://github.com/vedantmgoyal9/winget-releaser) to the workflow to
+open the version-bump PR automatically. It needs a personal access token with `public_repo`
+stored as a repository secret; that is why it is not wired up already.
+
+The package is `zip` + nested `portable`, the same shape HEMTT uses: winget unpacks the
+archive and puts `a3rig.exe` on PATH through its own shim directory.
