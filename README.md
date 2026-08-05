@@ -334,13 +334,28 @@ $ .\.venv\Scripts\python -m PyInstaller packaging/a3rig.spec --noconfirm
 
 ### Publishing to winget
 
-**First release** — submit by hand:
+The release must be published **first** — winget's validation downloads the installer URL
+and checks it against the `InstallerSha256` in the manifest.
 
-1. Download `winget-manifests.zip` from the release.
-2. Validate: `winget validate --manifest <folder>`.
-3. Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), copy the three
-   files to `manifests/d/DiGii/A3Rig/<version>/`, and open a pull request. Automated
-   validation plus a human review follow.
+**First release.** Use Microsoft's own tool; it forks winget-pkgs and opens the PR for you:
+
+```console
+$ winget install Microsoft.WingetCreate
+```
+
+Download `winget-manifests.zip` from the GitHub release and extract it, then:
+
+```console
+$ winget validate --manifest .\winget-manifests
+$ wingetcreate submit --prtitle "New package: DiGii.A3Rig version 0.1.0" --token <PAT> .\winget-manifests
+```
+
+The token is a GitHub [personal access token](https://github.com/settings/tokens) with the
+`public_repo` scope — it only needs to fork a public repo and push a branch.
+
+After that an automated pipeline validates the manifest and installs the package in a
+sandbox, then a maintainer reviews it. Once merged, `winget install DiGii.A3Rig` works for
+everyone.
 
 **Later releases** — once `DiGii.A3Rig` exists in winget-pkgs, add
 [WinGet Releaser](https://github.com/vedantmgoyal9/winget-releaser) to the workflow to

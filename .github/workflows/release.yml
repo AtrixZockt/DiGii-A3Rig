@@ -74,7 +74,9 @@ jobs:
             -Sha256 '${{ steps.package.outputs.sha256 }}' `
             -OutputDir winget-manifests `
             -Repo '${{ github.repository }}'
-          Compress-Archive -Path winget-manifests\* -DestinationPath winget-manifests.zip -Force
+          # Zip the folder, not its contents, so extracting always yields a single
+          # winget-manifests\ folder to point `wingetcreate submit` at.
+          Compress-Archive -Path winget-manifests -DestinationPath winget-manifests.zip -Force
 
       - name: Publish release
         shell: pwsh
