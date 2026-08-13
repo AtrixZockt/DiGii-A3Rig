@@ -4,7 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "a3rig"
-version = "0.1.0"
+# Single source of truth: read from src/a3rig/__init__.py, which the release workflow
+# checks the tag against. Keeping a literal here as well would let the two drift.
+dynamic = ["version"]
 description = "Start a local Arma 3 mod test rig (HEMTT dev build + 2 clients + dedicated server) with one command"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -31,6 +33,9 @@ build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 a3rig = "a3rig.cli:main"
+
+[tool.hatch.version]
+path = "src/a3rig/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a3rig"]

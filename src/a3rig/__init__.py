@@ -1,6 +1,6 @@
 """a3rig - local Arma 3 multiplayer test rig for HEMTT projects."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 APP_NAME = "a3rig"
 

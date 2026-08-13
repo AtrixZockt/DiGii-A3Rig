@@ -10,6 +10,10 @@ $ .\.venv\Scripts\python -m pip install -e ".[dev]"
 $ .\.venv\Scripts\python -m pytest
 ```
 
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same suite on every push to
+`main` and on pull requests, against **3.11 and 3.12**. 3.11 is in the matrix because
+`requires-python = ">=3.11"` is a promise, and day-to-day development happens on 3.12.
+
 Tests cover the platform-independent logic: `launch.toml` parsing including `extends` and
 cycles, mod-argument building, config merge precedence, VDF library parsing, preset
 extraction, server-config detection and patching, and session/tail behaviour.

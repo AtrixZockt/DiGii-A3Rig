@@ -50,6 +50,11 @@ DEFAULTS: dict[str, Any] = {
         "profile": "Dev2",
         "parameters": ["-window", "-noSplash", "-skipIntro", "-filePatching", "-noLauncher"],
     },
+    "tail": {
+        "enabled": True,
+        "level": "all",
+        "filter": "",
+    },
 }
 
 # Raw string: the comments contain Windows paths, and `\a` in a plain literal would
@@ -105,6 +110,15 @@ server_mods = []
 [client2]
 profile    = "Dev2"  # -name= : keeps client 2 off your normal Arma profile
 parameters = ["-window", "-noSplash", "-skipIntro", "-filePatching", "-noLauncher"]
+
+[tail]
+# The server .rpt is mostly noise - a modded server can log the same warning thousands of
+# times - while the point of watching it is to catch script errors.
+enabled = true    # false never tails; the same as always passing --no-tail
+level   = "all"   # "all", "warnings" (warnings + errors), or "errors"
+filter  = ""      # optional regex applied on top of `level`; empty means no filtering
+
+# Overridable per run with --no-tail, --tail-level and --tail-filter.
 """
 
 

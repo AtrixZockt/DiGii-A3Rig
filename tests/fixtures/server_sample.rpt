@@ -1,0 +1,32 @@
+=====================================================================
+== E:\Arma3Server\arma3server_x64.exe
+== "E:\Arma3Server\arma3server_x64.exe" -port=2302 -name=Server
+
+Original output filename: Arma3Retail_Server_x64
+Exe timestamp: 2025/06/24 13:00:10
+Current time:  2026/07/12 19:24:34
+
+Type: Public
+Build: Stable
+Version: 2.20.152984
+Allocator: E:\Arma3Server\Dll\tbb4malloc_bi_x64.dll
+PhysMem: 31 GiB, VirtMem : 134217727 GiB, AvailPhys : 17 GiB
+ 1:27:34 Steam beta branch: none
+ 1:27:52 C:\Program Files (x86)\Steam\steamapps\workshop\content\107410\450814997\addons\cba_common.pbo - 3.18.6
+ 1:27:53 Initializing Steam server - Game Port: 2302, Steam Query Port: 2303
+ 1:27:53 Connected to Steam servers
+ 1:28:01 Warning Message: '/' is not a value
+ 1:28:01 Warning Message: Size: '/' not an array
+ 1:28:01 Warning Message: []: '/' not an array
+ 1:28:02 Warning Message: No entry '.maxAngleX'
+ 1:28:02 Warning: x\kat\addons\chemical\models\kat_mask_m1.p3d:1, vertex: 4, sum of weights is 0
+ 1:28:03 Server: Object 4:12 not found (message Type_91)
+ 1:28:04 Cannot evaluate '' - no file
+ 1:28:05 Error: Object(4 : 12) not found
+ 1:28:05 Error: Bone m1 doesn't exist in skeleton OFP2_ManSkeleton
+ 1:28:22 Client: Dev2 - SteamID:76561198145986243 - Kicked off - player with same SteamID already in game.
+ 1:29:10 Error in expression <IR_currentVanillaVisionMode",0]);
+ 1:29:10   Error position: <_curVisVeh isEqualTo _storedVisVeh) && (>
+ 1:29:10   Error Undefined variable in expression: _curvisveh
+ 1:29:11 Warning Message: Script \bwa3_eagle\functions\fn_windshieldWipers.sqf not found
+ 1:29:30 Mission id: 8f1c2b3a4d5e6f70

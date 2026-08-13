@@ -132,6 +132,8 @@ A source install needs Python 3.11+. The winget package does not.
 | `--no-hemtt` | Skip the build — runs `hemtt launch --quick`, needs an existing `.hemttout/dev`. |
 | `-c`, `--launch-config <name>` | `launch.toml` profile. Repeat to chain: `-c default -c ace`. |
 | `--no-tail` | Do not tail the server `.rpt`. |
+| `--tail-level <level>` | How much of the log to show: `all`, `warnings` or `errors`. |
+| `--tail-filter <regex>` | Only show `.rpt` lines matching this regex. |
 | `--dry-run` | Resolve everything and print the exact command lines. Starts nothing. |
 | `--fix-server-config` | Offer to correct the `server.cfg` settings a local rig needs. |
 | `-v`, `--verbose` | Extra detail. |
@@ -188,6 +190,11 @@ server_mods = []                        # extra -serverMod= entries
 [client2]
 profile    = "Dev2"                     # -name= ; keeps client 2 off your normal profile
 parameters = ["-window", "-noSplash", "-skipIntro", "-filePatching", "-noLauncher"]
+
+[tail]
+enabled = true    # false never tails; same as always passing --no-tail
+level   = "all"   # "all", "warnings" (warnings + errors), or "errors"
+filter  = ""      # optional regex on top of `level`; empty means no filtering
 ```
 
 > **Windows paths in TOML.** Use forward slashes — `"D:/arma3-test"`. A backslash inside
@@ -213,6 +220,28 @@ and `config`/`cfg` may themselves name a folder, which is searched the same way.
 
 Client 2 and the server **inherit the resolved mod list** from `launch.toml`; the
 `parameters` arrays are additional.
+
+### Turning down the server log
+
+A modded server writes a lot of noise — one real 3.4 MB log here contains 7,010 copies of
+a single warning — and the reason to watch it is to catch script errors. `[tail] level`
+narrows what is shown:
+
+| level | shows |
+|---|---|
+| `all` | everything (default) |
+| `warnings` | warnings and errors |
+| `errors` | errors only |
+
+Errors are printed red, warnings yellow, everything else dim. `filter` takes a regex
+applied *on top of* the level, so `level = "errors"` with `filter = "ace"` shows only ACE
+errors. Set `enabled = false` to never tail at all.
+
+Arma reports a script error as three consecutive lines — `Error in expression`,
+`Error position`, `Error Undefined variable` — and all three survive an `errors` filter, so
+you never get the position without the expression.
+
+Per run: `--tail-level errors`, `--tail-filter <regex>`, `--no-tail`.
 
 ## Server settings a local rig needs
 

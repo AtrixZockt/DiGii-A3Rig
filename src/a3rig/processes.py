@@ -37,6 +37,8 @@ class TrackedProcess:
     exe: str
     #: psutil's process start time. Guards against killing a recycled PID.
     create_time: float
+    #: Project root this was started for, so `stop` can group across concurrent rigs.
+    project: str = ""
     started_at: float = field(default_factory=time.time)
 
     def live_process(self) -> psutil.Process | None:
@@ -52,23 +54,44 @@ class TrackedProcess:
 
 @dataclass
 class Session:
-    """What a single `a3rig run` started, persisted so `stop` can find it again."""
+    """Processes a3rig has started, persisted so `stop` can find them again.
+
+    The file accumulates across runs *and* projects. Starting a rig in one project must
+    not orphan a rig still running in another, so `save` merges with whatever is already
+    on disk rather than replacing it, dropping only the entries whose process has since
+    exited.
+    """
 
     project: str = ""
     started_at: float = field(default_factory=time.time)
     processes: list[TrackedProcess] = field(default_factory=list)
 
     def add(self, process: TrackedProcess) -> None:
+        """Record a process, stamping it with this run's project."""
+        if not process.project:
+            process.project = self.project
         self.processes = [p for p in self.processes if p.pid != process.pid]
         self.processes.append(process)
 
     def save(self, path: Path | None = None) -> Path:
+        """Write the session, merging with any still-running entries already on disk.
+
+        Safe to call repeatedly mid-run: each spawn should be persisted as it happens, so
+        an interrupted run still leaves something `stop` can act on.
+        """
         path = path or session_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+
+        ours = {p.pid for p in self.processes}
+        # Entries we did not just create are only kept if still alive - this is what
+        # prunes previous runs without discarding a concurrent one.
+        surviving = [
+            p
+            for p in Session.load(path).processes
+            if p.pid not in ours and p.live_process() is not None
+        ]
         payload = {
-            "project": self.project,
-            "started_at": self.started_at,
-            "processes": [asdict(p) for p in self.processes],
+            "processes": [asdict(p) for p in surviving + self.processes],
         }
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return path
@@ -88,16 +111,20 @@ class Session:
                 pid=int(item.get("pid", 0)),
                 exe=str(item.get("exe", "")),
                 create_time=float(item.get("create_time", 0.0)),
+                project=str(item.get("project", "")),
                 started_at=float(item.get("started_at", 0.0)),
             )
             for item in payload.get("processes", [])
             if isinstance(item, dict)
         ]
-        return cls(
-            project=str(payload.get("project", "")),
-            started_at=float(payload.get("started_at", 0.0)),
-            processes=processes,
-        )
+        return cls(processes=processes)
+
+    def by_project(self) -> dict[str, list[TrackedProcess]]:
+        """Tracked processes grouped by the project that started them."""
+        grouped: dict[str, list[TrackedProcess]] = {}
+        for process in self.processes:
+            grouped.setdefault(process.project or "unknown project", []).append(process)
+        return grouped
 
 
 # --------------------------------------------------------------------------------------

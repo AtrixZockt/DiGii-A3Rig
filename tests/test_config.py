@@ -170,6 +170,31 @@ def test_nothing_configured_reports_each_key(tmp_path: Path) -> None:
     assert all(message == "not configured" for _, message in paths.problems)
 
 
+def test_tail_defaults(isolated_appdata: Path) -> None:
+    cfg = load_config(None)
+    assert cfg.get("tail", "enabled") is True
+    assert cfg.get("tail", "level") == "all"
+    assert cfg.get("tail", "filter") == ""
+
+
+def test_tail_settings_follow_the_global_then_project_then_cli_chain(
+    isolated_appdata: Path, project_factory
+) -> None:
+    (isolated_appdata / "a3rig").mkdir(parents=True, exist_ok=True)
+    (isolated_appdata / "a3rig" / "config.toml").write_text(
+        '[tail]\nenabled = false\nlevel = "warnings"\n', encoding="utf-8"
+    )
+    root = project_factory(launch_toml="[default]\n")
+    (root / ".hemtt" / "a3rig.toml").write_text('[tail]\nlevel = "errors"\n', encoding="utf-8")
+
+    cfg = load_config(root, create_global=False)
+    assert cfg.get("tail", "level") == "errors"  # project wins over global
+    assert cfg.get("tail", "enabled") is False  # global still applies
+
+    overridden = cfg.apply_overrides({"tail": {"level": "all"}})
+    assert overridden.get("tail", "level") == "all"  # CLI wins over both
+
+
 def test_launch_config_accepts_a_string_or_a_list() -> None:
     assert launch_config_names(Config(DEFAULTS, [])) == ["default"]
     chained = Config(deep_merge(DEFAULTS, {"launch": {"config": ["default", "ace"]}}), [])

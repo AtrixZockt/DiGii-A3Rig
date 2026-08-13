@@ -13,6 +13,7 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
+from rich.text import Text
 
 from . import APP_NAME, __version__
 from .servercfg import patch_server_config
@@ -39,12 +40,13 @@ from .processes import (
     clear_session,
     find_all_arma_processes,
     run_streaming,
+    session_path,
     spawn_detached,
     stop_session,
     terminate,
     wait_for_hemtt,
 )
-from .tail import find_new_rpt, follow
+from .tail import ERROR, INFO, LEVELS, WARNING, classify, find_new_rpt, follow, make_line_filter
 from .hemtt import find_project_root, load_project
 
 console = Console()
@@ -108,6 +110,12 @@ def run(
         None, "--launch-config", "-c", help="launch.toml profile. Repeat to chain profiles."
     ),
     no_tail: bool = typer.Option(False, "--no-tail", help="Do not tail the server .rpt."),
+    tail_level: Optional[str] = typer.Option(
+        None, "--tail-level", help="How much of the .rpt to show: all, warnings or errors."
+    ),
+    tail_filter: Optional[str] = typer.Option(
+        None, "--tail-filter", help="Only show .rpt lines matching this regex."
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Resolve everything and print the commands only."),
     fix_server_config: bool = typer.Option(
         False,
@@ -123,6 +131,16 @@ def run(
 
     want_server = not no_server and bool(config.get("server", "enabled", True))
     names = list(launch_config) if launch_config else launch_config_names(config)
+
+    # Validated before anything launches: the tail only starts once the rig is up, and
+    # finding out about a typo 30 seconds in - with the games already running - is useless.
+    level = tail_level or str(config.get("tail", "level", "all"))
+    if level not in LEVELS:
+        raise A3RigError(
+            f"unknown tail level {level!r}",
+            f"expected one of: {', '.join(LEVELS)}",
+            "fix --tail-level, or [tail] level in the a3rig config",
+        )
 
     plan = build_plan(
         project=project,
@@ -208,6 +226,9 @@ def run(
                 )
             for pid, create_time in new.items():
                 session.add(TrackedProcess("client1", pid, CLIENT_EXE, create_time))
+            # Persisted here, not at the end: the next step waits ~25s, and a Ctrl+C in
+            # that window must still leave `a3rig stop` something to act on.
+            session.save()
             if new:
                 console.print(f"\n[green]ok[/green] client 1 running (pid {', '.join(map(str, new))})")
             else:
@@ -227,6 +248,7 @@ def run(
         tracked = spawn_detached(plan.client2_argv, cwd=plan.arma.client_dir)
         tracked.role = "client2"
         session.add(tracked)
+        session.save()
         console.print(
             f"[green]ok[/green] client 2 running (pid {tracked.pid}, "
             f"profile {config.get('client2', 'profile', 'Dev2')})"
@@ -241,11 +263,11 @@ def run(
         tracked.role = "server"
         tracked.exe = SERVER_EXE
         session.add(tracked)
+        session.save()
         console.print(f"[green]ok[/green] dedicated server running (pid {tracked.pid})")
 
-    saved = session.save()
     if verbose:
-        console.print(f"[dim]session: {saved}[/dim]")
+        console.print(f"[dim]session: {session_path()}[/dim]")
 
     # --- 7. address and tail -------------------------------------------------------------
     if plan.want_server:
@@ -259,14 +281,22 @@ def run(
             )
         )
 
-    if plan.want_server and not no_tail:
-        if plan.server_profiles is not None:
-            _tail_server_log(plan.server_profiles, server_started_at)
+    # --no-tail and [tail] enabled = false mean the same thing; CLI flags win over config.
+    tail_wanted = plan.want_server and not no_tail and bool(config.get("tail", "enabled", True))
+    if tail_wanted and plan.server_profiles is not None:
+        pattern = tail_filter if tail_filter is not None else str(config.get("tail", "filter", ""))
+        _tail_server_log(plan.server_profiles, server_started_at, level, pattern or None)
     else:
         console.print(f"[dim]processes are detached. `{APP_NAME} stop` terminates them.[/dim]")
 
 
-def _tail_server_log(profiles_dir: Path, since: float) -> None:
+#: Prefix style per severity, so a script error stands out in a wall of warnings.
+_RPT_STYLE = {ERROR: "bold red", WARNING: "yellow", INFO: "dim cyan"}
+
+
+def _tail_server_log(
+    profiles_dir: Path, since: float, level: str = "all", pattern: str | None = None
+) -> None:
     console.print(f"[dim]looking for the server .rpt in {profiles_dir}...[/dim]")
     rpt = find_new_rpt(profiles_dir, since)
     if rpt is None:
@@ -275,9 +305,17 @@ def _tail_server_log(profiles_dir: Path, since: float) -> None:
             "The server may still be starting, or writes its log elsewhere."
         )
         return
-    console.print(f"[dim]tailing {rpt}  (Ctrl+C stops the tail, not the game)[/dim]\n")
+
+    shown = f"level={level}" + (f", filter={pattern!r}" if pattern else "")
+    console.print(f"[dim]tailing {rpt}  ({shown})  (Ctrl+C stops the tail, not the game)[/dim]\n")
+
+    accepts = make_line_filter(level, pattern)
     for line in follow(rpt):
-        console.print(f"[dim cyan][rpt][/dim cyan] {line}", highlight=False, markup=False)
+        if not accepts(line):
+            continue
+        # Text, not markup: log lines routinely contain `[ACE]`-style brackets that rich
+        # would otherwise try to parse as style tags.
+        console.print(Text(f"[rpt] {line}", style=_RPT_STYLE[classify(line)]))
 
 
 # --------------------------------------------------------------------------------------
@@ -297,10 +335,15 @@ def stop(
     if not session.processes:
         console.print("[dim]no session recorded[/dim]")
     else:
-        console.print(f"[dim]session from {session.project or 'unknown project'}[/dim]")
-        for tracked, outcome in stop_session(session):
-            style = "green" if outcome == "stopped" else "dim" if outcome == "not running" else "red"
-            console.print(f"  [{style}]{outcome}[/{style}]  {tracked.role} (pid {tracked.pid})")
+        # Grouped because the session spans every project a3rig has a rig running for.
+        # Keyed by pid: TrackedProcess is a plain dataclass and so unhashable.
+        outcomes = {tracked.pid: outcome for tracked, outcome in stop_session(session)}
+        for project, tracked_list in session.by_project().items():
+            console.print(f"[dim]{escape(project)}[/dim]")
+            for tracked in tracked_list:
+                outcome = outcomes.get(tracked.pid, "not running")
+                style = "green" if outcome == "stopped" else "dim" if outcome == "not running" else "red"
+                console.print(f"  [{style}]{outcome}[/{style}]  {tracked.role} (pid {tracked.pid})")
         clear_session()
 
     if not all_processes:
