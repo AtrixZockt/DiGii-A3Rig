@@ -1,7 +1,7 @@
 name: Release
 
 # Tagging `v<version>` builds the standalone Windows executable, publishes it as a
-# GitHub release, and attaches ready-to-submit winget manifests.
+# GitHub release, and opens the winget-pkgs version-bump PR.
 #
 #   git tag v0.1.0 && git push origin v0.1.0
 on:
@@ -19,6 +19,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -101,3 +104,41 @@ jobs:
             --notes $notes `
             '${{ steps.package.outputs.asset }}' `
             'winget-manifests.zip'
+
+  # Opens the version-bump PR at microsoft/winget-pkgs. Separate job so a winget hiccup
+  # never invalidates a good release - re-run just this job to retry.
+  #
+  # This deliberately runs here rather than in a workflow triggered by `on: release`:
+  # GitHub does not fire workflow events for releases created with GITHUB_TOKEN, so such
+  # a workflow would silently never run.
+  winget:
+    needs: release
+    runs-on: windows-latest
+
+    steps:
+      # winget-releaser fails hard without a token, which would mark every release run
+      # red before the secret is configured. Skip cleanly instead.
+      - name: Check for the winget token
+        id: token
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINGET_TOKEN)) {
+            Write-Output "::notice::WINGET_TOKEN is not set - skipping the winget-pkgs submission."
+            "present=false" >> $env:GITHUB_OUTPUT
+          } else {
+            "present=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Submit to winget-pkgs
+        if: steps.token.outputs.present == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: DiGii.A3Rig
+          version: ${{ needs.release.outputs.version }}
+          release-tag: v${{ needs.release.outputs.version }}
+          # Anchored on purpose: the release carries winget-manifests.zip as well, and the
+          # action's default regex (exe|msi|msix|appx) matches neither asset.
+          installers-regex: '^a3rig-windows-x64\.zip$'
+          token: ${{ secrets.WINGET_TOKEN }}
